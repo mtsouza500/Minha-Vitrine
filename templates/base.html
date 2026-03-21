@@ -43,6 +43,9 @@
                     </div>
                 </form>
                 
+                <button type="button" class="theme-toggle" id="themeToggle" title="Modo noturno" aria-label="Alternar modo noturno">
+                    <i class="fas fa-moon" id="themeToggleIcon"></i>
+                </button>
                 {% if user.is_authenticated %}
                     <a href="{% url 'meus_favoritos' %}" class="nav-link">Meus Favoritos</a>
                     <div class="nav-user">
@@ -94,6 +97,9 @@
             <a href="{% url 'home' %}" class="mobile-nav-link">Início</a>
             <a href="{% url 'mapa_interativo' %}" class="mobile-nav-link">Mapa Interativo</a>
             <a href="{% url 'eventos' %}" class="mobile-nav-link">Eventos</a>
+            <button type="button" class="theme-toggle mobile-theme-toggle" id="themeToggleMobile" title="Modo noturno" aria-label="Alternar modo noturno" style="margin: 0.5rem 1.5rem;">
+                <i class="fas fa-moon"></i> Modo noturno
+            </button>
             {% if user.is_authenticated %}
                 <a href="{% url 'meus_favoritos' %}" class="mobile-nav-link">Meus Favoritos</a>
                 {% if user.profile.is_dev or user.is_staff %}
@@ -164,7 +170,7 @@
     </footer>
     
     <!-- JavaScript -->
-    <script src="/static/js/main.js"></script>
+    <script src="{% static 'js/main.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

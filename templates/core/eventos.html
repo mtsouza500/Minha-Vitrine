@@ -28,7 +28,7 @@
         {% if eventos %}
             <div class="eventos-grid">
                 {% for evento in eventos %}
-                    <div class="evento-card">
+                    <div class="evento-card {% if evento.esta_encerrado %}evento-card-encerrado evento-card-lista-encerrado{% endif %}">
                         {% if evento.banner %}
                             <img src="{{ evento.banner.url }}" alt="{{ evento.nome }}" class="evento-banner">
                         {% else %}
@@ -40,7 +40,11 @@
                         <div class="evento-content">
                             <span class="evento-tipo">{{ evento.get_tipo_display }}</span>
                             <h3 class="evento-nome">{{ evento.nome }}</h3>
-                            <p class="evento-descricao">{{ evento.descricao|truncatewords:30 }}</p>
+                            {% if evento.esta_encerrado %}
+                                <p class="evento-encerrado-msg">Evento encerrado — o link de detalhes ficará indisponível até a remoção automática (24h após o fim).</p>
+                            {% else %}
+                                <p class="evento-descricao">{{ evento.descricao|truncatewords:30 }}</p>
+                            {% endif %}
                             
                             <div class="evento-info">
                                 <div class="info-item">
@@ -57,9 +61,13 @@
                                 </div>
                             </div>
                             
+                            {% if not evento.esta_encerrado %}
                             <a href="{% url 'evento_detalhe' evento.id %}" class="btn-evento-detalhes">
                                 Ver Detalhes <i class="fas fa-arrow-right"></i>
                             </a>
+                            {% else %}
+                            <span class="btn-evento-detalhes btn-evento-detalhes-disabled">Indisponível</span>
+                            {% endif %}
                         </div>
                     </div>
                 {% endfor %}

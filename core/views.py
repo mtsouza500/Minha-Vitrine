@@ -1,22 +1,55 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.decorators import login_required
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.db.models import Q, Count, Avg
-from django.http import JsonResponse
-from .models import Categoria, Estabelecimento, Evento, Avaliacao
-from .forms import RegistroForm, LoginForm, AvaliacaoForm
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
+from django.db.models import Avg, Count, Q
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
+from .forms import AvaliacaoForm, FeedbackForm, LoginForm, RegistroForm
+from .models import Avaliacao, Categoria, Estabelecimento, Evento
 import json
+
+EVENTOS_CATEGORIA_SLUG = 'eventos'
+
+
+def purge_eventos_expirados():
+    """Remove eventos 24h após o horário de término."""
+    from django.utils import timezone
+
+    agora = timezone.now()
+    for evento in Evento.objects.filter(ativo=True):
+        fim = evento.get_datetime_fim()
+        if agora > fim + timedelta(hours=24):
+            if evento.banner:
+                evento.banner.delete(save=False)
+            evento.delete()
+
+
+def _eventos_destaque_carrossel():
+    qs = Evento.objects.filter(ativo=True, destaque=True).order_by(
+        'data_inicio', 'hora_inicio'
+    )[:25]
+    return [e for e in qs if not e.esta_encerrado()][:5]
 
 
 def home(request):
-    """Página inicial com categorias e estabelecimentos"""
+    """Página inicial com categorias e estabelecimentos (ou eventos na categoria Eventos)."""
+    purge_eventos_expirados()
+
     categorias = Categoria.objects.filter(ativo=True)
     categoria_selecionada_slug = request.GET.get('categoria')
     categoria_selecionada = None
+    modo_eventos = categoria_selecionada_slug == EVENTOS_CATEGORIA_SLUG
 
-    # Estabelecimentos em destaque para o carrossel (máximo 5)
     estabelecimentos_destaque = Estabelecimento.objects.filter(
         ativo=True,
         destaque=True
@@ -24,30 +57,36 @@ def home(request):
         media_avaliacoes=Avg('avaliacoes__estrelas'),
         total_avaliacoes=Count('avaliacoes')
     ).order_by('-criado_em')[:5]
-    
-    # Eventos em destaque para o carrossel (máximo 5)
-    eventos_destaque = Evento.objects.filter(
-        ativo=True,
-        destaque=True
-    ).order_by('data_inicio', 'hora_inicio')[:5]
 
-    estabelecimentos = Estabelecimento.objects.filter(
-        ativo=True).select_related('categoria')
+    eventos_destaque = _eventos_destaque_carrossel()
 
-    if categoria_selecionada_slug:
-        estabelecimentos = estabelecimentos.filter(
-            categoria__slug=categoria_selecionada_slug)
+    if modo_eventos:
+        estabelecimentos = Estabelecimento.objects.none()
         try:
             categoria_selecionada = Categoria.objects.get(
-                slug=categoria_selecionada_slug, ativo=True)
+                slug=EVENTOS_CATEGORIA_SLUG, ativo=True)
         except Categoria.DoesNotExist:
             pass
+        eventos_lista = Evento.objects.filter(ativo=True).order_by(
+            'data_inicio', 'hora_inicio')
+    else:
+        eventos_lista = []
+        estabelecimentos = Estabelecimento.objects.filter(
+            ativo=True).select_related('categoria')
 
-    # Adicionar média de avaliações
-    estabelecimentos = estabelecimentos.annotate(
-        media_avaliacoes=Avg('avaliacoes__estrelas'),
-        total_avaliacoes=Count('avaliacoes')
-    )
+        if categoria_selecionada_slug:
+            estabelecimentos = estabelecimentos.filter(
+                categoria__slug=categoria_selecionada_slug)
+            try:
+                categoria_selecionada = Categoria.objects.get(
+                    slug=categoria_selecionada_slug, ativo=True)
+            except Categoria.DoesNotExist:
+                pass
+
+        estabelecimentos = estabelecimentos.annotate(
+            media_avaliacoes=Avg('avaliacoes__estrelas'),
+            total_avaliacoes=Count('avaliacoes')
+        )
 
     context = {
         'categorias': categorias,
@@ -56,6 +95,9 @@ def home(request):
         'eventos_destaque': eventos_destaque,
         'categoria_selecionada': categoria_selecionada,
         'categoria_selecionada_slug': categoria_selecionada_slug,
+        'modo_eventos': modo_eventos,
+        'eventos_lista': eventos_lista,
+        'feedback_form': FeedbackForm(),
     }
     return render(request, 'core/home.html', context)
 
@@ -101,13 +143,12 @@ def estabelecimento_detalhe(request, id):
 
 def eventos(request):
     """Lista de eventos"""
-    from django.utils import timezone
-    from datetime import date, time
-    
+    purge_eventos_expirados()
+
     tipo_selecionado = request.GET.get('tipo')
 
-    # Filtrar apenas eventos ativos e ordenar por data (próximos primeiro)
-    eventos_list = Evento.objects.filter(ativo=True).order_by('data_inicio', 'hora_inicio')
+    eventos_list = Evento.objects.filter(ativo=True).order_by(
+        'data_inicio', 'hora_inicio')
 
     if tipo_selecionado:
         eventos_list = eventos_list.filter(tipo=tipo_selecionado)
@@ -121,8 +162,11 @@ def eventos(request):
 
 
 def evento_detalhe(request, id):
-    """Detalhes de um evento"""
+    """Detalhes de um evento (indisponível após o término)."""
+    purge_eventos_expirados()
     evento = get_object_or_404(Evento, id=id, ativo=True)
+    if evento.esta_encerrado():
+        raise Http404('Evento encerrado.')
 
     context = {
         'evento': evento,
@@ -184,6 +228,44 @@ def mapa_interativo(request):
     return render(request, 'core/mapa_interativo.html', context)
 
 
+def _enviar_email_ativacao(request, user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = request.build_absolute_uri(
+        reverse('ativar_conta', kwargs={'uidb64': uid, 'token': token})
+    )
+    assunto = 'Confirme seu cadastro — Minha Vitrine'
+    corpo = (
+        f'Olá, {user.first_name or user.username}.\n\n'
+        f'Para ativar sua conta, acesse o link abaixo:\n{link}\n\n'
+        'Se você não se cadastrou, ignore este e-mail.'
+    )
+    send_mail(
+        assunto,
+        corpo,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+
+
+def ativar_conta(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        messages.success(
+            request, 'Conta ativada com sucesso! Você já pode entrar.')
+        return redirect('login')
+    messages.error(
+        request, 'Link de ativação inválido ou expirado. Cadastre-se novamente.')
+    return redirect('home')
+
+
 def registro_view(request):
     """Registro de novos usuários"""
     if request.user.is_authenticated:
@@ -193,10 +275,21 @@ def registro_view(request):
         form = RegistroForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
-            messages.success(
-                request, 'Conta criada com sucesso! Bem-vindo ao Minha Vitrine.')
-            return redirect('home')
+            try:
+                _enviar_email_ativacao(request, user)
+            except Exception:
+                messages.warning(
+                    request,
+                    'Conta criada, mas o e-mail de confirmação não pôde ser enviado. '
+                    'Verifique as configurações de e-mail do servidor ou contate o suporte.',
+                )
+            else:
+                messages.success(
+                    request,
+                    'Cadastro realizado! Verifique seu e-mail e clique no link para '
+                    'ativar sua conta antes de entrar.',
+                )
+            return redirect('login')
     else:
         form = RegistroForm()
 
@@ -216,11 +309,20 @@ def login_view(request):
             user = authenticate(request, username=username, password=password)
 
             if user is not None:
-                login(request, user)
-                messages.success(
-                    request, f'Bem-vindo de volta, {user.first_name or user.username}!')
-                next_url = request.GET.get('next', 'home')
-                return redirect(next_url)
+                if not user.is_active:
+                    messages.error(
+                        request,
+                        'Esta conta ainda não foi ativada. Verifique seu e-mail e clique '
+                        'no link de confirmação.',
+                    )
+                else:
+                    login(request, user)
+                    messages.success(
+                        request,
+                        f'Bem-vindo de volta, {user.first_name or user.username}!',
+                    )
+                    next_url = request.GET.get('next', 'home')
+                    return redirect(next_url)
             else:
                 messages.error(request, 'Login ou senha incorretos.')
     else:
@@ -235,6 +337,25 @@ def logout_view(request):
     logout(request)
     messages.info(request, 'Você saiu da sua conta.')
     return redirect('home')
+
+
+@login_required
+def enviar_feedback(request):
+    """Recebe feedback do usuário autenticado."""
+    if request.method != 'POST':
+        return redirect('home')
+    form = FeedbackForm(request.POST)
+    if form.is_valid():
+        fb = form.save(commit=False)
+        fb.usuario = request.user
+        fb.save()
+        messages.success(request, 'Obrigado pelo seu feedback!')
+    else:
+        messages.error(
+            request,
+            'Não foi possível enviar o feedback. Verifique a mensagem e tente novamente.',
+        )
+    return redirect(request.META.get('HTTP_REFERER') or 'home')
 
 
 @login_required

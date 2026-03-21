@@ -1,6 +1,9 @@
+from datetime import datetime, time
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
+from django.utils import timezone
 
 
 class Categoria(models.Model):
@@ -210,6 +213,39 @@ class Evento(models.Model):
 
     def __str__(self):
         return f"{self.nome} - {self.data_inicio}"
+
+    def get_datetime_inicio(self):
+        dt = datetime.combine(self.data_inicio, self.hora_inicio)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+
+    def get_datetime_fim(self):
+        d = self.data_fim or self.data_inicio
+        t = self.hora_fim if self.hora_fim is not None else time(23, 59, 59)
+        dt = datetime.combine(d, t)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+
+    def esta_encerrado(self):
+        return timezone.now() > self.get_datetime_fim()
+
+
+class Feedback(models.Model):
+    """Mensagens de feedback enviadas pelos usuários"""
+    usuario = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='feedbacks_enviados')
+    mensagem = models.TextField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Feedback'
+        verbose_name_plural = 'Feedbacks'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'Feedback de {self.usuario.username} em {self.criado_em}'
 
 
 class Profile(models.Model):

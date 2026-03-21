@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Categoria, Estabelecimento, FotoEstabelecimento, Avaliacao, Evento, Profile
+from .models import (
+    Categoria, Estabelecimento, FotoEstabelecimento, Avaliacao, Evento,
+    Profile, Feedback,
+)
 
 
 class FotoEstabelecimentoInline(admin.TabularInline):
@@ -103,6 +106,14 @@ class EventoAdmin(admin.ModelAdmin):
         if not change:
             obj.criado_por = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'criado_em']
+    list_filter = ['criado_em']
+    search_fields = ['mensagem', 'usuario__username', 'usuario__email']
+    readonly_fields = ['usuario', 'criado_em']
 
 
 @admin.register(Profile)

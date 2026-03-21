@@ -48,9 +48,16 @@
                 </div>
                 
                 <div class="evento-actions">
-                    <button class="btn-compartilhar">
-                        <i class="fas fa-share-alt"></i> Compartilhar
-                    </button>
+                    <div class="share-wrap" id="shareWrap">
+                        <button type="button" class="btn-compartilhar" id="btnCompartilhar" aria-expanded="false" aria-haspopup="true">
+                            <i class="fas fa-share-alt"></i> Compartilhar
+                        </button>
+                        <div class="share-popover" id="sharePopover" role="menu">
+                            <button type="button" class="btn-copiar-link" id="btnCopiarUrl" data-url="{{ request.scheme }}://{{ request.get_host }}{{ request.get_full_path }}">
+                                <i class="fas fa-link"></i> Copiar link
+                            </button>
+                        </div>
+                    </div>
                     <a href="{% url 'eventos' %}" class="btn-voltar">
                         <i class="fas fa-arrow-left"></i> Voltar para Eventos
                     </a>
@@ -195,5 +202,49 @@
     color: #6C5CE7;
 }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var wrap = document.getElementById('shareWrap');
+    var btn = document.getElementById('btnCompartilhar');
+    var copiar = document.getElementById('btnCopiarUrl');
+    if (!wrap || !btn || !copiar) return;
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        wrap.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded', wrap.classList.contains('is-open'));
+    });
+    document.addEventListener('click', function() {
+        wrap.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+    });
+    copiar.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var url = copiar.getAttribute('data-url') || window.location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+                copiar.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+                setTimeout(function() {
+                    copiar.innerHTML = '<i class="fas fa-link"></i> Copiar link';
+                }, 2000);
+            });
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            copiar.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+            setTimeout(function() {
+                copiar.innerHTML = '<i class="fas fa-link"></i> Copiar link';
+            }, 2000);
+        }
+        wrap.classList.remove('is-open');
+    });
+});
+</script>
 {% endblock %}
 

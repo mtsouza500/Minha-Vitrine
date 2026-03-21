@@ -311,5 +311,41 @@ window.addEventListener('scroll', function() {
     }
 });
 
+(function initTheme() {
+    try {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        function updateIcons() {
+            var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            var icon = document.getElementById('themeToggleIcon');
+            if (icon) {
+                icon.className = dark ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+        function toggle() {
+            var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            if (next === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            }
+            updateIcons();
+        }
+        var btn = document.getElementById('themeToggle');
+        var btnM = document.getElementById('themeToggleMobile');
+        if (btn) btn.addEventListener('click', toggle);
+        if (btnM) btnM.addEventListener('click', function() {
+            toggle();
+            var mm = document.getElementById('mobileMenu');
+            if (mm) mm.classList.remove('active');
+        });
+        updateIcons();
+    } catch (e) {}
+})();
+
 console.log('Minha Vitrine - Sistema inicializado');
 

@@ -175,6 +175,49 @@
     </section>
 {% endif %}
 
+{% if modo_eventos %}
+<!-- Eventos (categoria Eventos na home) -->
+<section class="establishments-section eventos-home-section">
+    <div class="container">
+        {% if eventos_lista %}
+            <div class="eventos-grid olx-cards">
+                {% for evento in eventos_lista %}
+                    <article class="evento-card {% if evento.esta_encerrado %}evento-card-encerrado{% endif %}">
+                        {% if evento.banner %}
+                            <img src="{{ evento.banner.url }}" alt="" class="evento-banner">
+                        {% else %}
+                            <div class="evento-banner-placeholder">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                        {% endif %}
+                        <div class="evento-content">
+                            <span class="evento-tipo">{{ evento.get_tipo_display }}</span>
+                            {% if evento.esta_encerrado %}
+                                <h3 class="evento-nome">{{ evento.nome }}</h3>
+                                <p class="evento-encerrado-msg">Evento encerrado</p>
+                            {% else %}
+                                <h3 class="evento-nome">{{ evento.nome }}</h3>
+                                <p class="evento-descricao">{{ evento.descricao|truncatewords:28 }}</p>
+                                <div class="evento-info">
+                                    <span><i class="fas fa-calendar"></i> {{ evento.data_inicio|date:"d/m/Y" }}</span>
+                                    <span><i class="fas fa-clock"></i> {{ evento.hora_inicio|time:"H:i" }}</span>
+                                </div>
+                                <a href="{% url 'evento_detalhe' evento.id %}" class="btn-evento-detalhes">Ver detalhes</a>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="no-results">
+                <i class="fas fa-calendar-times"></i>
+                <h3>Nenhum evento encontrado</h3>
+                <p>Não há eventos cadastrados no momento.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% else %}
 <!-- Establishments Grid -->
 <section class="establishments-section">
     <div class="container">
@@ -238,6 +281,7 @@
         {% endif %}
     </div>
 </section>
+{% endif %}
 
 <!-- Favorites Footer Button -->
 {% if user.is_authenticated %}
@@ -246,16 +290,43 @@
             <i class="fas fa-star"></i>
             <span>Meus Favoritos</span>
         </a>
-        <a href="#" class="floating-feedback-btn">
+        <button type="button" class="floating-feedback-btn" id="openFeedbackModal" aria-haspopup="dialog">
             <i class="fas fa-comment"></i>
             <span>Enviar Feedback</span>
-        </a>
+        </button>
+    </div>
+
+    <div class="feedback-modal" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle" hidden>
+        <div class="feedback-modal-backdrop" id="feedbackModalBackdrop"></div>
+        <div class="feedback-modal-box">
+            <h2 id="feedbackModalTitle">Enviar feedback</h2>
+            <form method="post" action="{% url 'enviar_feedback' %}">
+                {% csrf_token %}
+                {{ feedback_form.mensagem }}
+                <div class="feedback-modal-actions">
+                    <button type="button" class="btn-secondary" id="closeFeedbackModal">Cancelar</button>
+                    <button type="submit" class="btn-primary">Enviar</button>
+                </div>
+            </form>
+        </div>
     </div>
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
+(function() {
+    var modal = document.getElementById('feedbackModal');
+    var openBtn = document.getElementById('openFeedbackModal');
+    var closeBtn = document.getElementById('closeFeedbackModal');
+    var backdrop = document.getElementById('feedbackModalBackdrop');
+    function openM() { if (modal) { modal.hidden = false; document.body.style.overflow = 'hidden'; } }
+    function closeM() { if (modal) { modal.hidden = true; document.body.style.overflow = ''; } }
+    if (openBtn) openBtn.addEventListener('click', openM);
+    if (closeBtn) closeBtn.addEventListener('click', closeM);
+    if (backdrop) backdrop.addEventListener('click', closeM);
+})();
+
 function toggleFavorite(estabelecimentoId) {
     {% if not user.is_authenticated %}
         window.location.href = "{% url 'login' %}?next=" + window.location.pathname;

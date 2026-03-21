@@ -44,4 +44,3 @@ Thumbs.db
 # Environment
 .env
 
-db.sqlite3

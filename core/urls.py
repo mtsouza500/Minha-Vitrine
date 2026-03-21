@@ -7,8 +7,15 @@ urlpatterns = [
 
     # Autenticação
     path('registro/', views.registro_view, name='registro'),
+    path(
+        'ativar/<uidb64>/<token>/',
+        views.ativar_conta,
+        name='ativar_conta',
+    ),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+
+    path('feedback/', views.enviar_feedback, name='enviar_feedback'),
 
     # Estabelecimentos
     path('estabelecimento/<int:id>/', views.estabelecimento_detalhe,
