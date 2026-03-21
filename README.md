@@ -1,4 +1,4 @@
-# Minha Vitrine - Vitrine Virtual MVP - TESTE123
+# Minha Vitrine - Vitrine Virtual MVP
 
 ## Descrição
 
