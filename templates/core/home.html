@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}Início - Minha Vitrine{% endblock %}
+
+{% block content %}
+<div class="home-hero">
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">Minha Vitrine</h1>
+            <p class="hero-subtitle">Descubra os melhores estabelecimentos e eventos da sua cidade</p>
+            
+            <!-- Search Bar -->
+            <form action="{% url 'buscar' %}" method="get" class="search-bar">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="q" placeholder="Filtrar Vitrine" class="search-input">
+                </div>
+                <button type="submit" class="search-btn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Categories -->
+<section class="categories-section">
+    <div class="container">
+        <div class="categories-tabs">
+            <a href="{% url 'home' %}" class="category-tab {% if not categoria_selecionada_slug %}active{% endif %}">
+                Início
+            </a>
+            {% for categoria in categorias %}
+                <a href="?categoria={{ categoria.slug }}" class="category-tab {% if categoria_selecionada_slug == categoria.slug %}active{% endif %}">
+                    {{ categoria.nome }}
+                </a>
+            {% endfor %}
+            <a href="{% url 'mapa_interativo' %}" class="category-tab">
+                Mapa Interativo
+            </a>
+            <a href="{% url 'meus_favoritos' %}" class="category-tab">
+                Favoritos
+            </a>
+            <a href="#" class="category-tab">
+                Notificações
+            </a>
+            <a href="#" class="category-tab">
+                Chat online
+            </a>
+            <a href="#" class="category-tab">
+                Histórico
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Category Title -->
+{% if categoria_selecionada %}
+    <section class="category-header">
+        <div class="container">
+            <h2>{{ categoria_selecionada.nome }}</h2>
+        </div>
+    </section>
+{% endif %}
+
+<!-- Establishments Grid -->
+<section class="establishments-section">
+    <div class="container">
+        {% if estabelecimentos %}
+            <div class="establishments-grid">
+                {% for estabelecimento in estabelecimentos %}
+                    <div class="establishment-card">
+                        <div class="card-image-wrapper">
+                            {% if estabelecimento.imagem_principal %}
+                                <img src="{{ estabelecimento.imagem_principal.url }}" alt="{{ estabelecimento.nome }}" class="card-image">
+                            {% else %}
+                                <div class="card-image-placeholder">
+                                    <i class="fas fa-store"></i>
+                                </div>
+                            {% endif %}
+                            
+                            <button class="favorite-btn {% if user.is_authenticated and user in estabelecimento.favoritos.all %}favorited{% endif %}" 
+                                    data-id="{{ estabelecimento.id }}"
+                                    onclick="toggleFavorite({{ estabelecimento.id }})">
+                                <i class="fas fa-star"></i>
+                                {% if user.is_authenticated and user in estabelecimento.favoritos.all %}
+                                    <span>Favoritos</span>
+                                {% else %}
+                                    <span>Favoritar</span>
+                                {% endif %}
+                            </button>
+                        </div>
+                        
+                        <div class="card-content">
+                            <h3 class="card-title">{{ estabelecimento.nome }}</h3>
+                            <p class="card-description">{{ estabelecimento.descricao|truncatewords:20 }}</p>
+                            
+                            {% if estabelecimento.media_avaliacoes %}
+                                <div class="card-rating">
+                                    {% for i in "12345" %}
+                                        {% if forloop.counter <= estabelecimento.media_avaliacoes %}
+                                            <i class="fas fa-star"></i>
+                                        {% else %}
+                                            <i class="far fa-star"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <span>({{ estabelecimento.total_avaliacoes }})</span>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="card-actions">
+                                <a href="{% url 'estabelecimento_detalhe' estabelecimento.id %}" class="btn-view-details">
+                                    Ver Detalhes <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="no-results">
+                <i class="fas fa-search"></i>
+                <h3>Nenhum estabelecimento encontrado</h3>
+                <p>Tente buscar em outra categoria</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Favorites Footer Button -->
+{% if user.is_authenticated %}
+    <div class="floating-favorites">
+        <a href="{% url 'meus_favoritos' %}" class="floating-btn">
+            <i class="fas fa-star"></i>
+            <span>Meus Favoritos</span>
+        </a>
+        <a href="#" class="floating-feedback-btn">
+            <i class="fas fa-comment"></i>
+            <span>Enviar Feedback</span>
+        </a>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleFavorite(estabelecimentoId) {
+    {% if not user.is_authenticated %}
+        window.location.href = "{% url 'login' %}?next=" + window.location.pathname;
+        return;
+    {% endif %}
+    
+    fetch(`/estabelecimento/${estabelecimentoId}/favoritar/`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const btn = document.querySelector(`button[data-id="${estabelecimentoId}"]`);
+            if (data.is_favorito) {
+                btn.classList.add('favorited');
+                btn.querySelector('span').textContent = 'Favoritos';
+            } else {
+                btn.classList.remove('favorited');
+                btn.querySelector('span').textContent = 'Favoritar';
+            }
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
+
