@@ -46,6 +46,48 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => message.remove(), 300);
         });
     });
+
+    // Theme toggle (Dark/Light) - persisted em localStorage
+    const body = document.body;
+    const themeToggle = document.getElementById('themeToggle');
+    const themeToggleMobile = document.getElementById('themeToggleMobile');
+    const themeIcon = document.getElementById('themeToggleIcon');
+
+    const applyTheme = (theme) => {
+        if (theme === 'light') {
+            body.classList.add('light-mode');
+            if (themeIcon) themeIcon.className = 'fas fa-sun';
+            if (themeToggleMobile) themeToggleMobile.innerHTML = '<i class="fas fa-sun"></i> Modo claro';
+            localStorage.setItem('theme', 'light');
+        } else {
+            body.classList.remove('light-mode');
+            if (themeIcon) themeIcon.className = 'fas fa-moon';
+            if (themeToggleMobile) themeToggleMobile.innerHTML = '<i class="fas fa-moon"></i> Modo noturno';
+            localStorage.setItem('theme', 'dark');
+        }
+    };
+
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+        applyTheme(storedTheme);
+    } else {
+        // Detecta preferências do sistema
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark ? 'dark' : 'light');
+    }
+
+    const toggleTheme = () => {
+        const isLight = body.classList.contains('light-mode');
+        applyTheme(isLight ? 'dark' : 'light');
+    };
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+
+    if (themeToggleMobile) {
+        themeToggleMobile.addEventListener('click', toggleTheme);
+    }
     
     // Auto-hide messages after 5 seconds
     setTimeout(() => {

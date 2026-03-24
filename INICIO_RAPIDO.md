@@ -61,7 +61,38 @@ exit()
 python manage.py runserver
 ```
 
-### 7️⃣ Acessar o Sistema
+> Dica: se quiser testar em outro dispositivo na mesma rede (ex: celular), rode:
+>
+> ```bash
+> python manage.py runserver 0.0.0.0:8000
+> ```
+>
+> Ou com IP fixo do PC:
+>
+> ```bash
+> python manage.py runserver 192.168.x.y:8000
+> ```
+>
+> Substitua `192.168.x.y` pelo seu IPv4 local (veja com `ipconfig`).
+
+### 7️⃣ Acessar o Sistema (Desktop)
+
+- **Site Principal**: http://127.0.0.1:8000/
+- **Painel Admin**: http://127.0.0.1:8000/admin/
+
+### 8️⃣ Acessar no Celular (mesma rede Wi-Fi)
+
+1. No PC, descubra o IP:
+   - `ipconfig` (Windows)
+   - anote o IPv4 (ex: `192.168.0.10`)
+2. Caso esteja com `DEBUG=True`, edite `settings.py`:
+   - `ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.0.10']`
+3. Inicie o servidor com IP:
+   - `python manage.py runserver 192.168.0.10:8000`
+4. No celular, abra:
+   - `http://192.168.0.10:8000/`
+
+> Se conseguir, está funcionando no mobile!
 
 - **Site Principal**: http://127.0.0.1:8000/
 - **Painel Admin**: http://127.0.0.1:8000/admin/
